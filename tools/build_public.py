@@ -89,9 +89,13 @@ def main():
                     pass
     os.makedirs(os.path.join(DST, 'tools'), exist_ok=True)
     shutil.copytree(os.path.join(SRC, 'lib'), os.path.join(DST, 'lib'), dirs_exist_ok=True)
-    for f in ('index.html', 'app.js'):
-        txt = io.open(os.path.join(SRC, f), encoding='utf-8').read()
-        if f == 'index.html':       # 사내 시스템 주소·링크 제거
+    for f in ('index.html', 'app.js', 'mobile.html', 'mobile.js',
+              'manifest.json', 'icon.svg', 'sw.js'):
+        sp = os.path.join(SRC, f)
+        if not os.path.exists(sp):
+            continue
+        txt = io.open(sp, encoding='utf-8').read()
+        if f in ('index.html', 'mobile.html'):   # 사내 시스템 주소·링크 제거
             txt = re.sub(r'데이터:\s*<a href="https://map\.etri\.re\.kr/".*?OpenStreetMap<br>',
                          '데이터: OpenStreetMap · ETRI 공개 배치도<br>', txt, flags=re.S)
             txt = txt.replace('https://map.etri.re.kr/api', '#').replace('https://map.etri.re.kr/', '#')
@@ -107,10 +111,11 @@ def main():
     r = subprocess.run(['node', os.path.join(DST, 'tools', 'build_standalone.js')],
                        cwd=DST, capture_output=True, text=True)
     sys.stdout.write(r.stdout)
-    src_html = os.path.join(DST, 'etri-3d-map-standalone.html')
-    dst_html = os.path.join(DST, 'ETRI-3D-map-public.html')
-    if os.path.exists(src_html):
-        os.replace(src_html, dst_html)
+    for a, b in (('etri-3d-map-standalone.html', 'ETRI-3D-map-public.html'),
+                 ('etri-3d-map-mobile.html', 'ETRI-3D-map-mobile-public.html')):
+        sp2 = os.path.join(DST, a)
+        if os.path.exists(sp2):
+            os.replace(sp2, os.path.join(DST, b))
 
     print(f"공개판 생성: {DST}")
     print(f"  제거: 층 {removed['floors']}개 · 호실 {removed['rooms']}개 · 별칭 {removed['alias']}건")
@@ -118,7 +123,8 @@ def main():
           f"공개 별칭 {len(data['aliases'])}건")
     # 검증: 공개 산출물에 내부 정보가 남아 있지 않은지 확인
     bad = []
-    for f in ('data.js', 'ETRI-3D-map-public.html'):
+    for f in ('data.js', 'ETRI-3D-map-public.html', 'ETRI-3D-map-mobile-public.html',
+              'mobile.html', 'mobile.js'):
         p = os.path.join(DST, f)
         if not os.path.exists(p):
             continue

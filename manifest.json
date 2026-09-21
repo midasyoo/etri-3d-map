@@ -1,0 +1,20 @@
+{
+  "name": "ETRI 본원 3D 조감도",
+  "short_name": "ETRI 3D",
+  "description": "ETRI 대전본원 캠퍼스 3D 지도와 정문에서 건물 입구까지 길안내",
+  "start_url": "mobile.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

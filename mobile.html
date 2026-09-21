@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ETRI 3D">
+<link rel="manifest" href="manifest.json">
+<title>ETRI 본원 3D 조감도</title>
+<style>
+  :root {
+    --brand: #1a237e; --brand2: #3949ab; --accent: #f59e0b;
+    --ink: #0f172a; --sub: #64748b; --line: #e2e8f0; --panel: #fff;
+    --sheet-peek: 84px;
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body {
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+    color: var(--ink); background: #0f172a;
+    -webkit-text-size-adjust: 100%;
+  }
+  #app { position: fixed; inset: 0; }
+  #viewport { position: absolute; inset: 0; }
+  #canvas3d { position: absolute; inset: 0; }
+  #canvas3d canvas { display: block; touch-action: none; }
+
+  /* ───────── 상단 검색바 ───────── */
+  #m-top {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 40;
+    padding: calc(var(--safe-t) + 8px) 10px 8px;
+    background: linear-gradient(180deg, rgba(15,23,42,.92) 60%, rgba(15,23,42,0));
+    display: flex; gap: 8px; align-items: center;
+  }
+  #m-searchwrap {
+    flex: 1; position: relative; display: flex; align-items: center;
+    background: #fff; border-radius: 24px; height: 44px; padding: 0 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.3);
+  }
+  #m-searchwrap .ic { font-size: 16px; color: #94a3b8; margin-right: 8px; }
+  #search {
+    flex: 1; border: none; outline: none; font-size: 16px; font-family: inherit;
+    background: transparent; color: #0f172a; min-width: 0;
+  }
+  #m-clear {
+    border: none; background: #e2e8f0; color: #475569; width: 26px; height: 26px;
+    border-radius: 50%; font-size: 15px; line-height: 1; display: none; flex-shrink: 0;
+  }
+  .m-iconbtn {
+    width: 44px; height: 44px; flex-shrink: 0; border: none; border-radius: 50%;
+    background: rgba(255,255,255,.14); color: #fff; font-size: 19px;
+    backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2);
+  }
+  .m-iconbtn.on { background: var(--accent); border-color: var(--accent); }
+
+  /* 검색 결과 */
+  #search-results {
+    display: none; position: absolute; top: calc(var(--safe-t) + 60px);
+    left: 10px; right: 10px; z-index: 45;
+    background: #fff; border-radius: 14px; max-height: 60vh; overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,.4); -webkit-overflow-scrolling: touch;
+  }
+  #search-results.open { display: block; }
+  .sr-item {
+    padding: 13px 14px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sr-item:last-child { border-bottom: none; }
+  .sr-main { flex: 1; min-width: 0; }
+  .sr-item .t { font-weight: 700; font-size: 15px; }
+  .sr-item .d { color: var(--sub); font-size: 13px; margin-top: 2px; }
+  .sr-item .tag {
+    display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 9px;
+    background: #e8eaf6; color: #283593; margin-right: 6px;
+  }
+  .sr-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .sr-go {
+    border: 1px solid #d97706; color: #b45309; background: #fffbeb;
+    border-radius: 8px; padding: 7px 10px; font-size: 12px; font-weight: 700;
+    font-family: inherit; white-space: nowrap;
+  }
+  .sr-none { padding: 16px; color: var(--sub); font-size: 14px; text-align: center; }
+
+  /* ───────── 경로 안내 칩 ───────── */
+  #routebar {
+    display: none; position: absolute; top: calc(var(--safe-t) + 62px);
+    left: 10px; right: 10px; z-index: 35;
+    background: rgba(15,23,42,.9); color: #fff; border-radius: 14px;
+    padding: 10px 14px; font-size: 13px; backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.18);
+    align-items: center; gap: 10px;
+  }
+  #routebar.show { display: flex; }
+  #routebar .rt { font-weight: 800; color: #fbbf24; flex-shrink: 0; }
+  #routebar .rd { color: #cbd5e1; flex: 1; font-size: 12px; }
+  #routebar button {
+    background: rgba(255,255,255,.14); border: none; color: #e2e8f0;
+    border-radius: 8px; padding: 7px 10px; font-size: 12px; font-family: inherit;
+  }
+
+  /* ───────── 우측 플로팅 버튼 ───────── */
+  #m-fabs {
+    position: absolute; right: 10px; z-index: 30;
+    bottom: calc(var(--sheet-peek) + var(--safe-b) + 12px);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .m-fab {
+    width: 46px; height: 46px; border: none; border-radius: 50%;
+    background: rgba(15,23,42,.82); color: #fff; font-size: 19px;
+    border: 1px solid rgba(255,255,255,.2); backdrop-filter: blur(8px);
+    box-shadow: 0 3px 12px rgba(0,0,0,.35);
+  }
+  .m-fab.on { background: var(--brand2); border-color: var(--brand2); }
+  .m-fab.go { background: var(--accent); border-color: var(--accent); }
+  #compass { width: 46px; height: 46px; }
+  #compass svg { width: 100%; height: 100%; }
+
+  /* ───────── 바텀시트 ───────── */
+  #m-sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 50;
+    height: 88vh; background: var(--panel);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,.35);
+    transform: translateY(calc(88vh - var(--sheet-peek) - var(--safe-b)));
+    transition: transform .28s cubic-bezier(.32,.72,0,1);
+    display: flex; flex-direction: column; touch-action: none;
+  }
+  #m-sheet.half { transform: translateY(45vh); }
+  #m-sheet.full { transform: translateY(0); }
+  #m-handle { padding: 9px 0 6px; flex-shrink: 0; }
+  #m-handle .bar {
+    width: 40px; height: 4px; border-radius: 2px; background: #cbd5e1; margin: 0 auto;
+  }
+  #m-tabs {
+    display: flex; gap: 6px; padding: 2px 12px 10px; flex-shrink: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .m-tab {
+    flex: 1; border: none; background: #f1f5f9; color: var(--sub);
+    border-radius: 10px; padding: 9px 0; font-size: 13px; font-weight: 700;
+    font-family: inherit;
+  }
+  .m-tab.on { background: var(--brand); color: #fff; }
+  .m-pane { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; display: none; }
+  .m-pane.on { display: block; }
+  #m-pane-list { padding: 10px 12px calc(20px + var(--safe-b)); }
+
+  /* 건물 카드 */
+  .group-title { font-size: 12px; font-weight: 800; color: var(--sub); margin: 12px 4px 7px; }
+  .bcard {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 13px 14px; margin-bottom: 8px;
+  }
+  .bcard.active { border-color: var(--brand2); box-shadow: 0 0 0 2px rgba(57,73,171,.2); }
+  .bcard .row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .bcard .bname { font-weight: 800; font-size: 15px; }
+  .bcard .bnum {
+    font-size: 11px; background: var(--brand); color: #fff;
+    border-radius: 9px; padding: 3px 9px; flex-shrink: 0;
+  }
+  .bcard .bnum.remote { background: #6d4c41; }
+  .bcard .bfac { font-size: 13px; color: var(--sub); margin-top: 5px; line-height: 1.5; }
+  .bcard .bmeta { font-size: 12px; color: #94a3b8; margin-top: 5px; }
+
+  /* 길찾기 패널 */
+  #m-pane-go { padding: 14px 12px calc(20px + var(--safe-b)); }
+  .m-field { margin-bottom: 14px; }
+  .m-field label { display: block; font-size: 12px; font-weight: 800; color: var(--sub); margin-bottom: 6px; }
+  .m-field select, .m-field input {
+    width: 100%; height: 46px; border: 1px solid var(--line); border-radius: 12px;
+    padding: 0 12px; font-size: 15px; font-family: inherit; background: #fff; color: var(--ink);
+    appearance: none; -webkit-appearance: none;
+  }
+  .m-row { display: flex; gap: 8px; }
+  .m-row > * { flex: 1; }
+  #rb-go, .m-primary {
+    width: 100%; height: 50px; border: none; border-radius: 12px;
+    background: var(--accent); color: #fff; font-size: 16px; font-weight: 800;
+    font-family: inherit;
+  }
+  #env-info { display: block; margin-top: 10px; font-size: 13px; font-weight: 700; color: #b45309; text-align: center; }
+
+  /* 상세 패널 */
+  #detail { display: none; }
+  #detail.open { display: block; }
+  #m-pane-detail { padding: 0 0 calc(20px + var(--safe-b)); }
+  .d-head { background: linear-gradient(135deg, #283593, #3949ab); color: #fff; padding: 16px 14px; position: relative; }
+  .d-head h2 { font-size: 19px; padding-right: 36px; }
+  .d-head .dnum { font-size: 12px; opacity: .85; margin-top: 4px; }
+  .d-close {
+    position: absolute; top: 12px; right: 12px; width: 32px; height: 32px;
+    border: none; border-radius: 50%; background: rgba(255,255,255,.2);
+    color: #fff; font-size: 16px;
+  }
+  .d-body { padding: 14px; }
+  .d-sec { margin-bottom: 18px; }
+  .d-sec h3 { font-size: 12px; color: var(--sub); font-weight: 800; margin-bottom: 8px; }
+  .d-fac { font-size: 14px; line-height: 1.65; color: #334155; }
+  .d-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .abtn {
+    flex: 1; min-width: 140px; border: none; border-radius: 12px; padding: 14px 8px;
+    font-size: 14px; font-weight: 800; font-family: inherit; text-align: center;
+    text-decoration: none; display: inline-block;
+  }
+  .abtn.route { background: var(--accent); color: #fff; }
+  .abtn.route.alt { background: #78716c; color: #fff; }
+  .abtn.mm { background: var(--brand2); color: #fff; }
+  .floor-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #f1f5f9; border-radius: 10px; padding: 12px; margin-bottom: 7px;
+  }
+  .floor-row .fn { font-weight: 800; font-size: 14px; }
+  .floor-row .fc { font-size: 12px; color: var(--sub); margin-left: 8px; }
+  .fbtn {
+    border: 1px solid var(--brand2); color: var(--brand2); background: #fff;
+    border-radius: 9px; padding: 8px 12px; font-size: 12px; font-weight: 700; font-family: inherit;
+  }
+  .conf-note { font-size: 12px; color: #92400e; background: #fef3c7; border-radius: 9px; padding: 11px; line-height: 1.6; }
+  .conf-note.ok { color: #065f46; background: #d1fae5; }
+
+  /* 설정 시트 */
+  #m-settings {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 60;
+    background: #fff; border-radius: 18px 18px 0 0; padding: 10px 14px calc(22px + var(--safe-b));
+    transform: translateY(105%); transition: transform .28s cubic-bezier(.32,.72,0,1);
+    box-shadow: 0 -6px 24px rgba(0,0,0,.4); max-height: 82vh; overflow-y: auto;
+  }
+  #m-settings.open { transform: translateY(0); }
+  #m-settings .bar { width: 40px; height: 4px; border-radius: 2px; background: #cbd5e1; margin: 0 auto 12px; }
+  #m-settings h3 { font-size: 13px; color: var(--sub); font-weight: 800; margin: 16px 0 8px; }
+  #m-settings h3:first-of-type { margin-top: 4px; }
+  #topbar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tbtn {
+    background: #f1f5f9; color: #334155; border: none; border-radius: 11px;
+    padding: 13px 4px; font-size: 13px; font-weight: 700; font-family: inherit;
+  }
+  .tbtn.on { background: var(--brand2); color: #fff; }
+  #envbar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #envbar .e-lbl { display: none; }
+  #envbar input, #envbar select {
+    width: 100%; height: 46px; border: 1px solid var(--line); border-radius: 11px;
+    padding: 0 10px; font-size: 14px; font-family: inherit; background: #fff; color: var(--ink);
+    appearance: none; -webkit-appearance: none;
+  }
+  #envbar button {
+    height: 46px; border: none; border-radius: 11px; background: var(--brand2);
+    color: #fff; font-weight: 800; font-size: 14px; font-family: inherit;
+  }
+  #env-weather, #sport-mode, #sport-pick { grid-column: span 2; }
+  #m-settings .close {
+    width: 100%; height: 48px; margin-top: 18px; border: none; border-radius: 12px;
+    background: #e2e8f0; color: #334155; font-size: 15px; font-weight: 800; font-family: inherit;
+  }
+
+  /* 백드롭 */
+  #m-backdrop {
+    position: absolute; inset: 0; z-index: 55; background: rgba(2,6,23,.45);
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  #m-backdrop.on { opacity: 1; pointer-events: auto; }
+
+  /* 기타 */
+  #credit {
+    position: absolute; z-index: 20; right: 10px; pointer-events: none;
+    top: calc(var(--safe-t) + 58px); text-align: right;
+    color: #eef4fb; font-size: 10px; line-height: 1.4;
+    text-shadow: 0 1px 3px rgba(0,0,0,.7); opacity: .75;
+  }
+  #credit .c-name { font-weight: 700; }
+  #public-notice {
+    position: absolute; left: 10px; right: 10px; z-index: 25;
+    bottom: calc(var(--sheet-peek) + var(--safe-b) + 14px);
+    background: rgba(120,53,15,.9); color: #ffe9b8; border: 1px solid rgba(255,210,74,.45);
+    border-radius: 12px; padding: 8px 12px; font-size: 11px; line-height: 1.5;
+    text-align: center; pointer-events: none;
+  }
+  #public-notice b { color: #ffd24a; }
+  .lbl3d {
+    position: absolute; transform: translate(-50%, -100%);
+    background: rgba(15,23,42,.85); color: #f1f5f9; font-size: 10px;
+    padding: 3px 8px; border-radius: 9px; pointer-events: none; white-space: nowrap;
+    border: 1px solid rgba(255,255,255,.16);
+  }
+  .lbl3d.gate { background: rgba(180,83,9,.92); font-weight: 700; }
+  .lbl3d.sel { background: var(--brand2); font-weight: 700; border-color: #fff; }
+  .lbl3d.entry { background: rgba(5,150,105,.92); font-weight: 700; transform: translate(-50%, 0); }
+  .lbl3d.score { background: rgba(120,53,15,.92); font-weight: 700; border-color: #fbbf24; }
+  .bubble3d {
+    position: absolute; transform: translate(-50%, -100%);
+    background: rgba(255,255,255,.96); color: #1e293b; font-size: 12px; font-weight: 700;
+    padding: 6px 11px; border-radius: 13px; pointer-events: none; white-space: nowrap;
+    box-shadow: 0 3px 12px rgba(0,0,0,.35); z-index: 9; border: 2px solid var(--brand2);
+  }
+  #toast {
+    position: absolute; bottom: calc(var(--sheet-peek) + var(--safe-b) + 70px); left: 50%;
+    transform: translateX(-50%); background: rgba(15,23,42,.94); color: #fff;
+    font-size: 13px; padding: 11px 18px; border-radius: 11px; z-index: 70;
+    opacity: 0; transition: opacity .3s; pointer-events: none; max-width: 86vw; text-align: center;
+  }
+  #toast.show { opacity: 1; }
+  #modal { display: none; position: fixed; inset: 0; z-index: 90; background: rgba(2,6,23,.85); }
+  #modal.open { display: flex; flex-direction: column; }
+  .m-head {
+    display: flex; align-items: center; gap: 8px; padding: calc(var(--safe-t) + 10px) 12px 10px;
+    background: var(--brand); color: #fff;
+  }
+  .m-head .mt { font-weight: 700; font-size: 14px; flex: 1; }
+  .m-head a, .m-head button {
+    background: rgba(255,255,255,.18); color: #fff; border: none;
+    border-radius: 8px; padding: 8px 11px; font-size: 12px; text-decoration: none; font-family: inherit;
+  }
+  #m-frame { flex: 1; border: none; width: 100%; background: #f0f0f0; }
+  /* 데스크톱 전용 요소 숨김 */
+  #sidebar, #hint, #m-sheet .side-head, #m-sheet .side-foot { display: none; }
+  #m-desktop-link {
+    display: block; text-align: center; font-size: 12px; color: var(--sub);
+    padding: 14px 0 4px; text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <main id="viewport">
+    <div id="canvas3d"></div>
+
+    <!-- 상단 검색 -->
+    <div id="m-top">
+      <div id="m-searchwrap">
+        <span class="ic">🔍</span>
+        <input id="search" type="search" autocomplete="off" enterkeyhint="search"
+               placeholder="건물·시설 검색 (예: 7동, 도서관)">
+        <button id="m-clear" aria-label="지우기">✕</button>
+      </div>
+      <button class="m-iconbtn" id="m-btn-settings" aria-label="설정">⚙️</button>
+    </div>
+    <div id="search-results"></div>
+
+    <!-- 경로 안내 -->
+    <div id="routebar">
+      <span class="rt" id="route-title"></span>
+      <span class="rd" id="route-desc"></span>
+      <button id="route-clear">지우기</button>
+    </div>
+
+    <div id="credit">
+      <div class="c-name">created by Yoon-Sik Yoo, Ph.D.</div>
+      <div class="c-mail">midasyoo@etri.re.kr</div>
+    </div>
+
+    <!-- 플로팅 버튼 -->
+    <div id="m-fabs">
+      <div id="compass" title="북쪽 정렬">
+        <svg viewBox="0 0 80 80">
+          <circle class="bg" cx="40" cy="40" r="38" fill="rgba(15,23,42,0.82)" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+          <g id="compass-rose">
+            <polygon points="40,16 34,40 46,40" fill="#ef4444"/>
+            <polygon points="34,40 46,40 40,64" fill="#cbd5e1"/>
+            <text x="40" y="13" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="#f87171" font-family="Arial">N</text>
+          </g>
+          <circle cx="40" cy="40" r="2.6" fill="#f1f5f9"/>
+        </svg>
+      </div>
+      <button class="m-fab go" id="m-btn-go" aria-label="길찾기">🚶</button>
+      <button class="m-fab" id="m-btn-home" aria-label="처음 뷰">⟲</button>
+    </div>
+
+    <!-- 바텀시트 -->
+    <div id="m-sheet">
+      <div id="m-handle"><div class="bar"></div></div>
+      <div id="m-tabs">
+        <button class="m-tab on" data-pane="list">🏢 건물</button>
+        <button class="m-tab" data-pane="go">🚶 길찾기</button>
+        <button class="m-tab" data-pane="detail">ℹ️ 상세</button>
+      </div>
+
+      <div class="m-pane on" id="m-pane-list">
+        <div id="blist"></div>
+        <a id="m-desktop-link" href="index.html?desktop=1">PC 화면으로 보기</a>
+      </div>
+
+      <div class="m-pane" id="m-pane-go">
+        <div class="m-field">
+          <label>출발</label>
+          <select id="rb-from">
+            <option value="main">정문</option>
+            <option value="back">후문</option>
+          </select>
+        </div>
+        <div class="m-field">
+          <label>도착 건물</label>
+          <select id="rb-dest"><option value="">건물을 선택하세요</option></select>
+        </div>
+        <div class="m-field">
+          <label>안내 캐릭터</label>
+          <select id="rb-person">
+            <option value="m">👨 남성</option>
+            <option value="f">👩 여성</option>
+            <option value="penguin">🐧 펭귄</option>
+            <option value="dolphin">🐬 돌고래</option>
+            <option value="eagle">🦅 독수리</option>
+            <option value="croc">🐊 악어</option>
+            <option value="cat">🐱 고양이</option>
+            <option value="squirrel">🐿️ 청설모</option>
+            <option value="chipmunk">🐹 다람쥐</option>
+            <option value="deer">🦌 고라니</option>
+            <option value="rat">🐭 쥐</option>
+            <option value="ox">🐮 소</option>
+            <option value="tiger">🐯 호랑이</option>
+            <option value="rabbit">🐰 토끼</option>
+            <option value="dragon">🐲 용</option>
+            <option value="snake">🐍 뱀</option>
+            <option value="horse">🐴 말</option>
+            <option value="sheep">🐑 양</option>
+            <option value="monkey">🐵 원숭이</option>
+            <option value="rooster">🐔 닭</option>
+            <option value="dog">🐶 개</option>
+            <option value="pig">🐷 돼지</option>
+          </select>
+        </div>
+        <button id="rb-go">길 안내 시작</button>
+      </div>
+
+      <div class="m-pane" id="m-pane-detail">
+        <div id="detail">
+          <div class="d-head">
+            <h2 id="d-name"></h2>
+            <div class="dnum" id="d-num"></div>
+            <button class="d-close" id="d-close">✕</button>
+          </div>
+          <div class="d-body" id="d-body"></div>
+        </div>
+        <div id="m-detail-empty" style="padding:40px 20px;text-align:center;color:#94a3b8;font-size:14px">
+          건물을 선택하면 상세 정보가 표시됩니다
+        </div>
+      </div>
+    </div>
+
+    <!-- 설정 시트 -->
+    <div id="m-backdrop"></div>
+    <div id="m-settings">
+      <div class="bar"></div>
+      <h3>화면</h3>
+      <div id="topbar">
+        <button class="tbtn" id="btn-side">☰ 목록</button>
+        <button class="tbtn" id="btn-reset">⟲ 처음 뷰</button>
+        <button class="tbtn" id="btn-top">🗺️ 탑뷰</button>
+        <button class="tbtn on" id="btn-labels">🏷️ 라벨</button>
+        <button class="tbtn" id="btn-spin">🔄 자동회전</button>
+        <button class="tbtn" id="btn-voice">🔈 음성</button>
+      </div>
+      <h3>방문 일시 · 날씨</h3>
+      <div id="envbar">
+        <span class="e-lbl">방문</span>
+        <input id="env-date" type="date">
+        <input id="env-time" type="time" step="600">
+        <select id="env-weather">
+          <option value="auto">자동(날짜기반)</option>
+          <option value="sunny">☀️ 맑음</option>
+          <option value="cloudy">☁️ 흐림</option>
+          <option value="rain">🌧️ 비</option>
+          <option value="snow">❄️ 눈</option>
+          <option value="fog">🌫️ 안개</option>
+        </select>
+        <button id="env-now">현재 시각</button>
+        <span class="e-lbl">경기</span>
+        <select id="sport-mode">
+          <option value="auto">경기: 자동(시간대)</option>
+          <option value="play">경기: 진행</option>
+          <option value="bench">경기: 대기석</option>
+          <option value="off">경기: 중지(가벼움)</option>
+        </select>
+        <select id="sport-pick">
+          <option value="all">종목: 전체</option>
+          <option value="baseball">⚾ 야구만</option>
+          <option value="tennis">🎾 테니스만</option>
+          <option value="jokgu">🏐 족구만</option>
+          <option value="soccer">⚽ 축구만</option>
+        </select>
+        <span id="env-info" style="grid-column:span 2"></span>
+      </div>
+      <button class="tbtn" id="btn-api" style="display:none">API</button>
+      <button class="close" id="m-settings-close">닫기</button>
+    </div>
+
+    <div id="toast"></div>
+    <div id="hint"></div>
+    <aside id="sidebar"></aside>
+  </main>
+</div>
+
+<div id="modal">
+  <div class="m-head">
+    <span class="mt" id="m-title"></span>
+    <a id="m-open" href="#" target="_blank">새 창 ↗</a>
+    <button id="m-close">닫기 ✕</button>
+  </div>
+  <iframe id="m-frame" src="about:blank" title="도면 보기"></iframe>
+</div>
+
+<script>window.__MOBILE__ = true;</script>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script src="mobile.js"></script>
+</body>
+</html>

@@ -578,6 +578,21 @@
   </div>
 </div>
 
+<script>
+/* 스마트폰 접속 시 모바일 화면으로 안내 (mobile-redirect)
+   ?desktop=1 이면 유지. 단일 파일 배포본에서는 mobile.html이 없으므로 동작하지 않는다. */
+(function () {
+  if (location.protocol === 'file:') return;
+  var p = new URLSearchParams(location.search);
+  if (p.get('desktop') === '1' || p.get('demo') === '1' || p.get('capture') === '1') return;
+  var small = Math.min(screen.width, screen.height) < 820;
+  var touch = matchMedia('(pointer: coarse)').matches;
+  if (small && touch) {
+    p.delete('desktop');
+    location.replace('mobile.html' + (p.toString() ? '?' + p.toString() : ''));
+  }
+})();
+</script>
 <script src="lib/three.min.js"></script>
 <script src="lib/OrbitControls.js"></script>
 <script src="data.js"></script>

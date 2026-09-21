@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="36" fill="#0f172a"/>
+  <path d="M24 132 L96 96 L168 132 L96 168 Z" fill="#2f7a38"/>
+  <path d="M24 108 L96 72 L168 108 L96 144 Z" fill="#3d8a48"/>
+  <rect x="62" y="44" width="26" height="46" fill="#cfd8e3"/>
+  <rect x="96" y="30" width="30" height="60" fill="#eef3f8"/>
+  <g font-family="Arial, sans-serif" font-weight="900" font-size="30">
+    <text x="36" y="40" fill="#1e56a0">E</text>
+    <text x="58" y="40" fill="#1e56a0">T</text>
+    <text x="80" y="40" fill="#e03127">R</text>
+    <text x="104" y="40" fill="#1e56a0">I</text>
+  </g>
+</svg>

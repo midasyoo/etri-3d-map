@@ -10,6 +10,10 @@
   'use strict';
 
   const D = ETRI_DATA;
+  // 모바일(스마트폰) 품질 스케일 — mobile.html에서 window.__MOBILE__ 설정
+  const MOBILE = window.__MOBILE__ === true ||
+    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 820);
+  const QUALITY = MOBILE ? 0.45 : 1;          // 수목·입자 밀도 배율
   const MM = D.meetmapBase || '';
   const PUBLIC_MODE = D.publicMode === true;      // 외부 공개판: 내부 시설정보 미포함
   const FLOOR_H = 3.4;          // 층고 (m) — 창문 텍스처 정렬 기준
@@ -43,7 +47,7 @@
   /* ---------------- three.js scene ---------------- */
   const wrap = document.getElementById('canvas3d');
   const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2));
   renderer.setSize(wrap.clientWidth, wrap.clientHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -72,7 +76,7 @@
   const sun = new THREE.DirectionalLight(0xfff0d8, 1.0);
   sun.position.set(-300, 420, -220);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
   sun.shadow.camera.left = -650; sun.shadow.camera.right = 650;
   sun.shadow.camera.top = 650; sun.shadow.camera.bottom = -650;
   sun.shadow.camera.far = 1600;
@@ -2213,7 +2217,7 @@
     };
     // 평지·외곽 산개
     let tries = 0;
-    while (conif.length + broad.length < 1100 && tries < 30000) {
+    while (conif.length + broad.length < Math.round(1100 * QUALITY) && tries < 30000) {
       tries++;
       const x = -900 + rng() * 1800, z = -900 + rng() * 1800;
       const inside = x > CAMPUS.minX && x < CAMPUS.maxX && z > CAMPUS.minZ && z < CAMPUS.maxZ;
@@ -2306,7 +2310,7 @@
     });
     // 산 위 밀집 군락 (우거진 숲)
     HILLS.forEach(H => {
-      const n = Math.round(H.s * H.s / 130 * (H.dense || 1));
+      const n = Math.round(H.s * H.s / 130 * (H.dense || 1) * QUALITY);
       for (let i = 0; i < n; i++) {
         const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * H.s * 1.7;
         const x = H.x + Math.cos(a) * r, z = H.z + Math.sin(a) * r;

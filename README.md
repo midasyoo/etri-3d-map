@@ -7,8 +7,18 @@ ETRI 대전본원 캠퍼스를 3D 조감도로 보여주고, **정문·후문에
 
 **<https://midasyoo.github.io/etri-3d-map/>**
 
-또는 [`ETRI-3D-map-public.html`](ETRI-3D-map-public.html) 한 파일만 내려받아 더블클릭하면
-오프라인에서도 그대로 실행됩니다. (설치·서버·인터넷 연결 불필요)
+**📱 스마트폰**: <https://midasyoo.github.io/etri-3d-map/mobile.html>
+(PC 주소로 접속해도 스마트폰이면 자동으로 이동합니다)
+
+또는 한 파일만 내려받아 더블클릭하면 오프라인에서도 실행됩니다. (설치·서버 불필요)
+
+| 기기 | 단일 파일 |
+|---|---|
+| PC | [`ETRI-3D-map-public.html`](ETRI-3D-map-public.html) |
+| 스마트폰 | [`ETRI-3D-map-mobile-public.html`](ETRI-3D-map-mobile-public.html) |
+
+> 스마트폰에서 자주 쓰신다면 브라우저 메뉴의 **홈 화면에 추가**로 앱처럼 설치할 수 있습니다.
+> (iPhone: 공유 → 홈 화면에 추가 / Android: ⋮ → 앱 설치)
 
 ### 🎬 60초 소개 영상
 
