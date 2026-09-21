@@ -4551,20 +4551,32 @@
    *  정문에서 1동~체육동까지 다양한 캐릭터가 찾아가는 60초 시네마틱
    * ============================================================ */
   const DEMO = {
-    on: false, t: 0, seg: -1, intro: 5.0, per: 3.0, outro: 7.0,
-    chars: ['m', 'f', 'tiger', 'rabbit', 'dog', 'horse', 'dolphin', 'eagle',
-            'cat', 'monkey', 'dragon', 'penguin', 'squirrel', 'deer', 'rooster', 'pig'],
+    on: false, t: 0, seg: -1, intro: 5.0, per: 4.0, outro: 7.0,
+    // 비행 캐릭터(용·독수리·돌고래)는 화면 흔들림이 커서 제외
+    chars: ['m', 'tiger', 'f', 'dog', 'rabbit', 'horse', 'cat', 'monkey',
+            'penguin', 'deer', 'rooster', 'pig', 'squirrel', 'ox', 'chipmunk', 'croc'],
+    // 건물 8곳 + 경기장 관람 4곳
+    seq: [{ b: '1' }, { b: '3' }, { b: '5' }, { s: 'soccer' }, { b: '6' }, { b: '7' },
+          { s: 'baseball' }, { b: '11' }, { b: '12' }, { s: 'jokgu' }, { b: '903' }, { s: 'tennis' }],
+    sports: {
+      soccer: ['⚽ 축구장', '점심시간마다 열리는 사내 리그'],
+      baseball: ['⚾ 야구장', '주말이면 함성이 가득한 그라운드'],
+      jokgu: ['🏐 족구장', '연구원들에게 가장 인기 있는 종목'],
+      tennis: ['🎾 테니스 코트', '야간 조명까지 갖춘 4면 코트'],
+    },
     tips: ['국내 최고의 ICT 연구기관', 'AI · 반도체 · 6G 원천기술', '40여 년의 연구 헤리티지',
-           '캠퍼스 어디든 3D로 길안내', '방문객도 쉽게 찾는 길', '오늘도 미래를 만듭니다'],
+           '캠퍼스 어디든 3D로 길안내', '일하고 운동하고, 활기찬 캠퍼스', '오늘도 미래를 만듭니다'],
     els: {},
   };
-  function demoBuildings() { return D.buildings; }
+  function demoBuildings() { return DEMO.seq; }
   function setupDemoUI() {
     ['sidebar'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
     ['topbar', 'envbar', 'hint', 'routebar'].forEach(id => {
       const e = document.getElementById(id); if (e) e.style.display = 'none';
     });
     const d = document.getElementById('detail'); if (d) d.style.display = 'none';
+    const pn = document.getElementById('public-notice');   // 데모 중에는 자막과 겹치지 않게 숨김
+    if (pn) pn.style.display = 'none';
     const host = document.getElementById('viewport');
     const mk = (cls, html) => {
       const e = document.createElement('div');
@@ -4597,7 +4609,9 @@
     const total = DEMO.intro + list.length * DEMO.per + DEMO.outro;
     const E = DEMO.els;
     // 시간대: 오전 9시 30분 → 일몰 무렵으로 자연스럽게 흐름
-    const hour = 9.5 + (T / total) * 8.7;
+    const segEnd = DEMO.intro + list.length * DEMO.per;
+    const hour = T <= segEnd ? 9.5 + (T / segEnd) * 7.0
+                             : 16.5 + Math.min(1, (T - segEnd) / DEMO.outro) * 2.1;
     if (Math.floor(T * 2) !== DEMO._envTick) {
       DEMO._envTick = Math.floor(T * 2);
       envDate = new Date(2026, 8, 17, Math.floor(hour), Math.round((hour % 1) * 60));
@@ -4640,31 +4654,62 @@
       E.tip.classList.remove('show');
       return;
     }
-    const b = list[idx], u = (after % DEMO.per) / DEMO.per;
-    if (idx !== DEMO.seg) {                     // 새 구간: 캐릭터·경로 세팅
+    const item = list[idx], u = (after % DEMO.per) / DEMO.per;
+    const b = item.b ? D.buildings.find(x => x.id === item.b) : null;
+    if (idx !== DEMO.seg) {                     // 새 구간 진입
       DEMO.seg = idx;
       showLabels = true;
       E.scrim.classList.remove('show');
-      document.getElementById('rb-person').value = DEMO.chars[idx % DEMO.chars.length];
-      selectBuilding(b.id, { fly: false });
-      const dEl = document.getElementById('detail');
-      if (dEl) dEl.classList.remove('open');
-      showRoute('main', b);
-      flyAnim = null;
       E.title.classList.remove('show');
       E.lower.classList.add('show');
-      E.lower.querySelector('.dl-chip').textContent =
-        /^\d+$/.test(b.id) && +b.id < 100 ? b.id + '동' : '부속시설';
-      E.lower.querySelector('.dl-name').textContent = b.name;
-      E.lower.querySelector('.dl-fac').textContent = b.facil;
-      E.route.classList.add('show');
       E.tip.textContent = DEMO.tips[idx % DEMO.tips.length];
       E.tip.classList.add('show');
       E.flash.classList.remove('go');
       void E.flash.offsetWidth;
       E.flash.classList.add('go');
       lastSpeak = -99;
+      flyAnim = null;
+      const dEl = document.getElementById('detail');
+      if (dEl) dEl.classList.remove('open');
+      if (b) {                                  // ── 건물: 캐릭터가 정문에서 출발
+        document.getElementById('rb-person').value = DEMO.chars[idx % DEMO.chars.length];
+        selectBuilding(b.id, { fly: false });
+        showRoute('main', b);
+        E.lower.querySelector('.dl-chip').textContent =
+          /^\d+$/.test(b.id) && +b.id < 100 ? b.id + '동' : '부속시설';
+        E.lower.querySelector('.dl-name').textContent = b.name;
+        E.lower.querySelector('.dl-fac').textContent = b.facil;
+        E.route.classList.add('show');
+      } else {                                  // ── 경기장: 경기 관람
+        deselect();
+        clearRoute();
+        const meta = DEMO.sports[item.s] || ['경기장', ''];
+        E.lower.querySelector('.dl-chip').textContent = '캠퍼스 스포츠';
+        E.lower.querySelector('.dl-name').textContent = meta[0];
+        E.lower.querySelector('.dl-fac').textContent = meta[1];
+        E.route.classList.remove('show');
+      }
     }
+    if (!b) {                                   // 경기장 구간: 필드 상공 선회
+      fieldModeAuto = false; fieldMode = 'play';
+      const pitch = (D.pitches || []).find(p2 => p2.sport === item.s);
+      if (pitch) {
+        let mnX = 1e9, mxX = -1e9, mnZ = 1e9, mxZ = -1e9;
+        pitch.foot.forEach(q => {
+          mnX = Math.min(mnX, q[0]); mxX = Math.max(mxX, q[0]);
+          mnZ = Math.min(mnZ, q[1]); mxZ = Math.max(mxZ, q[1]);
+        });
+        const fx = (mnX + mxX) / 2, fz = (mnZ + mxZ) / 2;
+        const span = Math.max(mxX - mnX, mxZ - mnZ);
+        const r = Math.max(span * 0.95, 55) * (1.18 - u * 0.3);   // 서서히 다가감
+        const a = idx * 1.7 + T * 0.30;
+        camera.position.set(fx + Math.sin(a) * r, 22 + span * 0.42, fz + Math.cos(a) * r);
+        controls.target.set(fx, 3, fz);
+        controls.update();
+      }
+      return;
+    }
+    fieldModeAuto = true;
     if (routeCurve && routeWalker) {            // 구간 내 진행률 직접 제어
       routeT = 0.02 + u * 0.95;
       const mins = routeLen / 67;

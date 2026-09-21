@@ -1,6 +1,0 @@
-# 내부 전용 자료는 절대 커밋하지 않습니다
-tools/source-data/
-data.internal.js
-etri-3d-map-standalone.html
-# 홍보 영상은 공개 배포 대상 (ETRI-3D-map-promo.mp4)
-node_modules/

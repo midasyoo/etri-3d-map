@@ -139,7 +139,7 @@
   /* ---------- route bar ---------- */
   #routebar {
     display: none;
-    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
     z-index: 11; background: rgba(15,23,42,.85); color: #fff;
     border: 1px solid rgba(255,255,255,.16); border-radius: 12px;
     padding: 9px 16px; font-size: .84em; backdrop-filter: blur(8px);
@@ -345,7 +345,7 @@
 
   /* ---------- 외부 공개판 고지 ---------- */
   #public-notice {
-    position: absolute; left: 50%; transform: translateX(-50%); bottom: 44px;
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 96px;
     z-index: 12; background: rgba(120,53,15,.88); color: #ffe9b8;
     border: 1px solid rgba(255,210,74,.45); border-radius: 20px;
     padding: 7px 18px; font-size: .74em; backdrop-filter: blur(6px);
@@ -371,8 +371,9 @@
 
   /* ---------- 방문 시각 · 날씨 ---------- */
   #envbar {
-    position: absolute; bottom: 44px; left: 12px; z-index: 11;
-    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    position: absolute; bottom: 44px; left: 12px; right: 12px; z-index: 11;
+    display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;
+    overflow-x: auto; max-width: calc(100% - 24px);
     background: rgba(15,23,42,.8); border: 1px solid rgba(255,255,255,.16);
     border-radius: 10px; padding: 7px 10px; backdrop-filter: blur(8px);
   }
