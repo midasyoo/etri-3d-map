@@ -10,6 +10,12 @@ ETRI 대전본원 캠퍼스를 3D 조감도로 보여주고, **정문·후문에
 또는 [`ETRI-3D-map-public.html`](ETRI-3D-map-public.html) 한 파일만 내려받아 더블클릭하면
 오프라인에서도 그대로 실행됩니다. (설치·서버·인터넷 연결 불필요)
 
+### 🎬 60초 소개 영상
+
+[`ETRI-3D-map-promo.mp4`](ETRI-3D-map-promo.mp4) — 정문에서 1동(행정동)부터 체육동까지
+16개 건물을 다양한 캐릭터가 찾아가는 홍보 영상입니다.
+(앱에서 직접 재생하려면 <https://midasyoo.github.io/etri-3d-map/?demo=1>)
+
 ---
 
 ## 주요 기능
