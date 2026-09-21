@@ -1,0 +1,6 @@
+# 내부 전용 자료는 절대 커밋하지 않습니다
+tools/source-data/
+data.internal.js
+etri-3d-map-standalone.html
+*.mp4
+node_modules/
