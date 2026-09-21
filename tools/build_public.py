@@ -72,9 +72,12 @@ def sanitize(d):
 
 def main():
     data, removed = sanitize(load_data())
+    # 리포 메타데이터·문서·배포물은 보존 (재빌드로 사라지지 않도록)
+    KEEP = {'.git', '.gitignore', '.nojekyll', 'README.md', 'LICENSE',
+            'ETRI-3D-map-promo.mp4'}
     if os.path.isdir(DST):                      # 폴더 자체는 유지(잠금 회피), 내용만 정리
         for name in os.listdir(DST):
-            if name == '.git':                  # 리포 메타데이터는 보존
+            if name in KEEP:
                 continue
             p = os.path.join(DST, name)
             if os.path.isdir(p):
