@@ -5044,8 +5044,15 @@ const ETRI_DATA = {"origin":{"lat":36.382,"lon":127.366},"buildings":[{"id":"1",
     dog: ['멍! 멍!', '왈왈!'],
     pig: ['꿀꿀!', '꾸잉—'],
   };
+  // iOS는 ① AudioContext가 무음 스위치에 묶이고 ② 오디오 재생에 사용자 제스처가 필요하며
+  // ③ 음성합성도 첫 호출이 제스처 안이어야 한다. → 합성음을 WAV로 만들어 <audio>로 재생한다.
+  const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (/Mac/.test(navigator.platform) && navigator.maxTouchPoints > 1);
+
   const Voice = {
     on: false, ctx: null, lastAt: -99,
+    useWav: IS_IOS,            // iOS: 무음 스위치 우회를 위해 <audio> 경로 사용
+    unlocked: false, el: null, _pending: [],
     ensure() {
       if (!this.ctx) {
         const AC = window.AudioContext || window.webkitAudioContext;
@@ -5054,11 +5061,89 @@ const ETRI_DATA = {"origin":{"lat":36.382,"lon":127.366},"buildings":[{"id":"1",
       if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
       return this.ctx;
     },
+    // 최초 사용자 제스처에서 호출 — 오디오·음성합성 잠금 해제
+    unlock() {
+      if (this.unlocked) return;
+      this.unlocked = true;
+      const ctx = this.ensure();
+      if (ctx) {                                     // 무음 버퍼 1회 재생(컨텍스트 활성화)
+        try {
+          const b = ctx.createBufferSource();
+          b.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+          b.connect(ctx.destination);
+          b.start(0);
+        } catch (e) { /* 무시 */ }
+      }
+      if (!this.el) {                                // <audio> 엘리먼트도 제스처 안에서 해제
+        this.el = new Audio();
+        this.el.setAttribute('playsinline', '');
+        this.el.preload = 'auto';
+      }
+      try {
+        this.el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+        const p = this.el.play();
+        if (p && p.catch) p.catch(() => { /* 무시 */ });
+      } catch (e) { /* 무시 */ }
+      if (window.speechSynthesis) {                  // 음성합성 예열(이후 자동 발화 허용)
+        try {
+          const w = new SpeechSynthesisUtterance(' ');
+          w.volume = 0.01; w.lang = 'ko-KR';
+          window.speechSynthesis.speak(w);
+        } catch (e) { /* 무시 */ }
+      }
+    },
+    // WAV 인코딩 (16bit PCM 모노)
+    _wav(buf) {
+      const n = buf.length, sr = buf.sampleRate;
+      const ab = new ArrayBuffer(44 + n * 2), v = new DataView(ab);
+      const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+      str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt ');
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+      v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+      str(36, 'data'); v.setUint32(40, n * 2, true);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) {
+        const s = Math.max(-1, Math.min(1, ch[i]));
+        v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      }
+      return new Blob([ab], { type: 'audio/wav' });
+    },
+    // 모아둔 소리를 오프라인 렌더 → <audio>로 재생 (무음 스위치 영향 없음)
+    _flush() {
+      const list = this._pending;
+      this._pending = [];
+      if (!list.length) return;
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!OAC) { list.forEach(o => this._schedule(this.ensure(), o)); return; }
+      const dur = list.reduce((m, o) => Math.max(m, (o.delay || 0) + o.dur), 0) + 0.15;
+      const sr = 44100;
+      let off;
+      try { off = new OAC(1, Math.ceil(sr * dur), sr); } catch (e) { return; }
+      list.forEach(o => this._schedule(off, o));
+      const done = buf => {
+        if (!this.el) { this.el = new Audio(); this.el.setAttribute('playsinline', ''); }
+        const url = URL.createObjectURL(this._wav(buf));
+        this.el.src = url;
+        this.el.currentTime = 0;
+        const p = this.el.play();
+        if (p && p.catch) p.catch(() => { /* 정책 차단 시 무시 */ });
+        setTimeout(() => URL.revokeObjectURL(url), (dur + 1) * 1000);
+      };
+      const r = off.startRendering();
+      if (r && r.then) r.then(done);                 // 표준
+      else off.oncomplete = e => done(e.renderedBuffer);   // 구형 Safari
+    },
     // 기본 합성음: 주파수 스윕 + 엔벨로프 (+ 비브라토/노이즈)
     tone(o) {
+      if (this.useWav) { this._pending.push(o); return; }   // iOS: 모았다가 WAV로 재생
       const ctx = this.ensure();
+      if (ctx) this._schedule(ctx, o);
+    },
+    _schedule(ctx, o) {
       if (!ctx) return;
-      const t0 = ctx.currentTime + (o.delay || 0);
+      const base = ctx.currentTime || 0;
+      const t0 = base + (o.delay || 0);
       const g = ctx.createGain();
       g.gain.setValueAtTime(0.0001, t0);
       g.gain.exponentialRampToValueAtTime(o.gain || 0.18, t0 + (o.atk || 0.03));
@@ -5105,6 +5190,10 @@ const ETRI_DATA = {"origin":{"lat":36.382,"lon":127.366},"buildings":[{"id":"1",
     },
     cry(kind) {
       if (!this.on || this.silent) return;
+      this._play(kind);
+      if (this.useWav) this._flush();               // iOS: 모아둔 소리를 한 번에 재생
+    },
+    _play(kind) {
       switch (kind) {
         case 'tiger':
           this.tone({ type: 'sawtooth', f0: 110, f1: 62, dur: 1.0, gain: 0.3, cutoff: 900, vib: 14, vibAmt: 12, noise: 0.06 });
@@ -5204,6 +5293,10 @@ const ETRI_DATA = {"origin":{"lat":36.382,"lon":127.366},"buildings":[{"id":"1",
       }
     },
   };
+  // 최초 사용자 제스처에서 오디오 잠금 해제 (iOS 필수)
+  ['pointerdown', 'touchend', 'click'].forEach(ev =>
+    document.addEventListener(ev, () => Voice.unlock(), { once: true, passive: true }));
+
   const bubbleEl = document.createElement('div');
   bubbleEl.className = 'bubble3d';
   bubbleEl.style.display = 'none';
@@ -5346,7 +5439,7 @@ const ETRI_DATA = {"origin":{"lat":36.382,"lon":127.366},"buildings":[{"id":"1",
           vb.classList.add('on');
           vb.textContent = '🔊 음성 ON';
         }
-        Voice.ensure();
+        Voice.unlock();
         lastSpeak = elapsed;
         speakWalker(document.getElementById('rb-person').value, elapsed);
         return;
@@ -5705,9 +5798,10 @@ const ETRI_DATA = {"origin":{"lat":36.382,"lon":127.366},"buildings":[{"id":"1",
     ev.currentTarget.classList.toggle('on', Voice.on);
     ev.currentTarget.textContent = Voice.on ? '🔊 음성 ON' : '🔈 음성';
     if (Voice.on) {
-      Voice.ensure();                                 // 사용자 제스처로 오디오 활성화
+      Voice.unlock();                                 // 사용자 제스처로 오디오 활성화
       lastSpeak = -99;                                // 즉시 한 마디
-      toast('캐릭터 음성·혼잣말을 켰습니다');
+      toast(IS_IOS ? '음성을 켰습니다 · 소리가 없으면 측면 무음 스위치를 확인하세요'
+                   : '캐릭터 음성·혼잣말을 켰습니다');
     } else {
       if (window.speechSynthesis) window.speechSynthesis.cancel();
       bubbleEl.style.display = 'none';
