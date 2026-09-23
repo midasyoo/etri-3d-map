@@ -38,6 +38,12 @@ PUBLIC_ALIAS_OK = re.compile(
 # 호실·연구실 단위 정보는 제외
 PUBLIC_ALIAS_NG = re.compile(r'실험실|연구실|회의실|홀딩스|건강|세바소|대강당')
 
+# 공개판 웹 버전에만 넣는 방문 집계 (내부판·단일파일에는 넣지 않는다).
+# 단일 파일은 사내망·오프라인에서 쓰므로 외부 요청이 나가서는 안 되고,
+# 내부판은 애초에 이 스크립트를 거치지 않는다.
+ANALYTICS_TAG = ('<script src="https://midasyoo.github.io/assets/analytics.js" '
+                 'defer></script>\n')
+
 
 def load_data():
     txt = io.open(os.path.join(SRC, 'data.js'), encoding='utf-8').read()
@@ -117,6 +123,17 @@ def main():
         if os.path.exists(sp2):
             os.replace(sp2, os.path.join(DST, b))
 
+    # 방문 집계는 단일 파일을 만든 **뒤에** 웹 버전에만 넣는다.
+    # (순서를 바꾸면 단일 파일에도 외부 스크립트가 섞여 들어간다)
+    for f in ('index.html', 'mobile.html'):
+        p = os.path.join(DST, f)
+        if not os.path.exists(p):
+            continue
+        t = io.open(p, encoding='utf-8').read()
+        if 'midasyoo.github.io/assets/analytics.js' not in t:
+            t = t.replace('</body>', ANALYTICS_TAG + '</body>', 1)
+            io.open(p, 'w', encoding='utf-8').write(t)
+
     print(f"공개판 생성: {DST}")
     print(f"  제거: 층 {removed['floors']}개 · 호실 {removed['rooms']}개 · 별칭 {removed['alias']}건")
     print(f"  남김: 건물 {len(data['buildings'])}동 + 원외 {len(data.get('remote', []))}개소, "
@@ -133,6 +150,22 @@ def main():
             if re.search(pat, t):
                 bad.append(f'{f}: {pat}')
     print('  검증:', '잔여 발견: ' + ', '.join(bad) if bad else '내부 정보 잔여 없음 ✅')
+
+    # 방문 집계가 들어가야 할 곳에만 들어갔는지 확인
+    AN = 'midasyoo.github.io/assets/analytics.js'
+    miss, leak = [], []
+    for f in ('index.html', 'mobile.html'):                      # 있어야 함
+        p = os.path.join(DST, f)
+        if os.path.exists(p) and AN not in io.open(p, encoding='utf-8').read():
+            miss.append(f)
+    for f in ('ETRI-3D-map-public.html', 'ETRI-3D-map-mobile-public.html'):   # 없어야 함
+        p = os.path.join(DST, f)
+        if os.path.exists(p) and AN in io.open(p, encoding='utf-8').read():
+            leak.append(f)
+    if miss or leak:
+        print('  집계:', '누락 ' + ','.join(miss) if miss else '', '단일파일 혼입 ' + ','.join(leak) if leak else '')
+    else:
+        print('  집계: 웹 버전에만 포함, 단일 파일은 외부 요청 없음 ✅')
 
 
 if __name__ == '__main__':
